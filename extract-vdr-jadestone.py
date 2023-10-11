@@ -1,19 +1,104 @@
+import imaplib
+import email
+import sys
 import pandas as pd
 import os
 import shutil
 from openpyxl import load_workbook
 from datetime import date, timedelta
+import logging
 
 vdrDirectory = 'VDR'
+vdrClientDir = 'C:/Users/mvmwe/PycharmProjects/extract-vdr/vdr/jadestone'
 
+date_date = date.today()
+t = date_date.strftime("%d%m%y")
+logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%d%m%Y %I:%M:%S%p', filename=f"C:/Users/mvmwe/PycharmProjects/extract-vdr/log/log {t}.txt", level=logging.DEBUG)
+yesterday = date_date - timedelta(days=1)
+todayDate = yesterday.strftime("%d/%m/%Y")
+dt = date_date.strftime('%d-%b-%Y')
+print(dt)
+fileTemplate = 'Template.xlsx'
 
-for vdrFile in os.listdir(vdrDirectory):
+#EMAIL INFO
+email_vdr = "mvmcc@meridiansurveys.com.my"
+pwd_vdr = "dc)in]}Xzk&%"
+server_mssb = "meridian-svr.meridiansurveys.com.my"
+
+#READ FROM TXT FILE AND APPEND INTO LIST
+vesselemail_list = []
+
+logging.debug('Logging started..')
+logging.debug('Open email-vessel-jadestone.txt')
+try:
+    with open(r'C:\Users\mvmwe\PycharmProjects\extract-vdr\email-vessel-jadestone.txt') as f:
+        try:
+            for line in f:
+                vesselemail_list.append(line.replace("\n", ""))
+        except:
+            logging.error('Error info in text file. Check for typo')
+except:
+    logging.exception('Error info in text file or check txt file name')
+    sys.exit()
+
+#DOWNLOAD FROM EMAIL
+def dwl_vdr(email_add, password, server, vesselEmail):
+    imap = imaplib.IMAP4_SSL(server, 993)
+    imap.login(email_add, password)
+    imap.select('INBOX')
+
+    index = 0
+
+    while index < len(vesselEmail):
+        try:
+            logging.debug(f'Download from email {vesselEmail[index]}')
+            typ, data = imap.search(None, '(SINCE %s)' % (dt,),'(FROM %s)' % (vesselEmail[index],))
+
+            print(vesselEmail[index])
+            for num in data[0].split():
+                typ, data = imap.fetch(num, '(RFC822)')
+                raw_email = data[0][1]
+                raw_email_string = raw_email.decode('ISO-8859–1')
+                email_message = email.message_from_string(raw_email_string)
+                subject_name = email_message['subject']
+                print(subject_name)
+
+                # att_path = "No attachment found from email " + subject_name
+                logging.debug(f'Email subject: {subject_name}')
+                for part in email_message.walk():
+                    if part.get_content_maintype() == 'multipart':
+                        continue
+                    if part.get('Content-Disposition') is None:
+                        continue
+
+                    if part.get_filename() and any(keyword in part.get_filename() for keyword in ['VDR','VDMR']) and part.get_filename().endswith('.xlsx'):
+                        filename = os.path.join(vdrClientDir, part.get_filename())
+                        logging.debug(f'file path: {filename}')
+                        print(filename)
+                        with open(filename, 'wb') as f:
+                            f.write(part.get_payload(decode=True))
+                        logging.debug(f'File downloaded: {filename}')
+            index += 1
+
+        except (OSError, TypeError) as k:
+            print(k)
+            continue
+
+    imap.close()
+    imap.logout()
+    logging.debug('Job finished..')
+
+try:
+    logging.debug('Downloading from mvmcc@meridiansurveys.com.my..')
+    dwl_vdr(email_vdr, pwd_vdr, server_mssb, vesselemail_list)
+
+except Exception as e:
+    logging.error("Error occurred", exc_info=True)
+
+#START EXTRACT
+for vdrFile in os.listdir(vdrClientDir):
     if vdrFile.endswith('.xlsx'):
-        date_date = date.today()
-        yesterday = date_date - timedelta(days=1)
-        todayDate = yesterday.strftime("%d/%m/%Y")
-        fileTemplate = 'Template.xlsx'
-        vdrFileDir = os.path.join(vdrDirectory,vdrFile)
+        vdrFileDir = os.path.join(vdrClientDir,vdrFile)
         wb = load_workbook(vdrFileDir, data_only=True)
         sheetVDR = wb['VDR']
         vesselName = sheetVDR['E12'].value
@@ -23,9 +108,9 @@ for vdrFile in os.listdir(vdrDirectory):
         file_path = os.path.join(template_path,fileName)
         shutil.copy(fileTemplate,file_path)
         sheetCrew = wb['CORE-CREW']
-        shipMMSI = 533180042
-        shipNationality = 'MALAYSIA'
-        shipType = 'UV'
+        #shipMMSI = 533180042
+        #shipNationality = 'MALAYSIA'
+        #shipType = 'UV'
         captainName = sheetVDR['J12'].value
         location = sheetVDR['L12'].value
         engineHour = sheetVDR['J23:J44']
@@ -59,10 +144,10 @@ for vdrFile in os.listdir(vdrDirectory):
         rob_column = ['ROB','OPENING @ 0000H','','','','','','Consumed','','','','','','','','','','','CLOSING @ 2400H','Remarks']
 
         #CREATE DATAFRAME
-        df = pd.DataFrame({'MMSI': shipMMSI,
+        df = pd.DataFrame({#'MMSI': shipMMSI,
                            'Vessel Name': [vesselName],
-                           'Nationality of Ship': shipNationality,
-                           'Type of Vessel': shipType,
+                           #'Nationality of Ship': shipNationality,
+                           #'Type of Vessel': shipType,
                            'Captain on Duty': [captainName],
                            'Location @ 2400H': [location],
                            'date': todayDate})
@@ -96,5 +181,5 @@ for vdrFile in os.listdir(vdrDirectory):
 
 #combined_1.to_excel(r'AISHAH AIMS 3.xlsx', sheet_name='Summary', index=False)
 #weather_table.to_excel(r'AISHAH AIMS 3.xlsx', sheet_name='Weather', index=False)
-memory_usage_bytes = df_activityLog.memory_usage(deep=True).sum()
-print(memory_usage_bytes)
+#memory_usage_bytes = df_activityLog.memory_usage(deep=True).sum()
+#print(memory_usage_bytes)

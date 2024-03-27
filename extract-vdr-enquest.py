@@ -5,7 +5,8 @@ from openpyxl import load_workbook
 from datetime import date, timedelta
 
 vdrDirectory = 'VDR'
-
+#VDR DIRECTORY
+vdrClientDir = 'C:/Users/mvmwe/PycharmProjects/extract-vdr/vdr/enquest'
 
 for vdrFile in os.listdir(vdrDirectory):
     if vdrFile.endswith('.xlsx'):
@@ -15,41 +16,45 @@ for vdrFile in os.listdir(vdrDirectory):
         fileTemplate = 'Template.xlsx'
         vdrFileDir = os.path.join(vdrDirectory,vdrFile)
         wb = load_workbook(vdrFileDir, data_only=True)
-        sheetVDR = wb['VDR']
-        vesselName = sheetVDR['E12'].value
+        sheetDailyReport = wb['Daily Report']
+        vesselName = sheetDailyReport['C4'].value
         fileName = vesselName + '.xlsx'
         #DUPLICATE TEMPLATE
         template_path = os.path.dirname(fileTemplate)
         file_path = os.path.join(template_path,fileName)
         shutil.copy(fileTemplate,file_path)
-        sheetCrew = wb['CORE-CREW']
-        shipMMSI = 533180042
-        shipNationality = 'MALAYSIA'
-        shipType = 'UV'
-        captainName = sheetVDR['J12'].value
-        location = sheetVDR['L12'].value
-        engineHour = sheetVDR['J23:J44']
-        engineFuel = sheetVDR['T23:T45']
-        activity = sheetVDR['I76':'I87']
-        weather_data = []
+        sheetActivities = wb['Boat Movements']
+        sheetFuel = wb['Fuel Monitoring']
+        sheetTOD = wb['TOD Report']
+        location = sheetDailyReport['U4'].value
+        weather_data_1 = []
+        weather_data_2 = []
+        rob_data = []
+        activity_data = []
+        fuel_data = []
         activityLog_data = []
         crew_data = []
-        rob_data = []
+        TOD_data = []
 
         #GET DATA
-        engineHour_value = [cell[0].value for cell in engineHour]
-        engineFuel_value = [cell[0].value for cell in engineFuel]
-        activity_value = [cell[0].value for cell in activity]
-        for row in sheetVDR.iter_rows(min_row=14,max_row=103,min_col=23,max_col=35):
-            activityLog_data.append([cell.value for cell in row])
-        for row in sheetVDR.iter_rows(min_row=16,max_row=19,min_col=9,max_col=15):
-            weather_data.append([cell.value for cell in row])
-        for row in sheetCrew.iter_rows(min_row=6,max_row=30,min_col=2,max_col=9):
-            crew_data.append([cell.value for cell in row])
-        for row in sheetVDR.iter_rows(min_row=52,max_row=72,min_col=2,max_col=21):
+        for row in sheetDailyReport.iter_rows(min_row=7,max_row=9,min_col=3,max_col=3):
+            weather_data_1.append([cell.value for cell in row])
+        for row in sheetDailyReport.iter_rows(min_row=7,max_row=9,min_col=15,max_col=15):
+            weather_data_2.append([cell.value for cell in row])
+        for row in sheetDailyReport.iter_rows(min_row=13,max_row=17,min_col=14,max_col=31):
             rob_data.append([cell.value for cell in row])
-
+        for row in sheetActivities.iter_rows(min_row=5,max_row=35,min_col=3,max_col=18):
+            activity_data.append([cell.value for cell in row])
+        for row in sheetFuel.iter_rows(min_row=8, max_row=38, min_col=3, max_col=18):
+            activity_data.append([cell.value for cell in row])
+        for row in sheetTOD.iter_rows(min_row=18,max_row=64,min_col=3,max_col=20):
+            TOD_data.append([cell.value for cell in row])
+        '''
+        for row in sheetDailyReport.iter_rows(min_row=14,max_row=103,min_col=23,max_col=35):
+            activityLog_data.append([cell.value for cell in row])
+        '''
         #COLUMN NAME
+        summary_column = ['MMSI','Vessel Name','Nationality of Ship','Type of Vessel','Location','Date','STBD ME (hrs)','STBD ME OUTLET FLOWMETER (hrs)','BOW THRUSTER 1 (hrs)','BOW THRUSTER 2 (hrs)','BOW THRUSTER 3 (hrs)','STERN THRUSTER 1 (hrs)','STERN THRUSTER 2 (hrs)','SHAFT GENERATOR 1 (hrs)','SHAFT GENERATOR 2 (hrs)','GENERATOR 1 (hrs)','GENERATOR 2 (hrs)','GENERATOR 3 (hrs)','GENERATOR 4 (hrs)','GENERATOR 5 (hrs)','GENERATOR 6 (hrs)','EMERGENCY GENERATOR (hrs)']
         engine_hour_column = ['PORT ME (hrs)','PORT ME OUTLET FLOWMETER (hrs)','CENTER ME (P) (hrs)','CENTER ME (P) OUTLET FLOWMETER (hrs)','CENTER ME (STBD) (hrs)','CENTER ME (STBD) OUTLET FLOWMETER (hrs)','STBD ME (hrs)','STBD ME OUTLET FLOWMETER (hrs)','BOW THRUSTER 1 (hrs)','BOW THRUSTER 2 (hrs)','BOW THRUSTER 3 (hrs)','STERN THRUSTER 1 (hrs)','STERN THRUSTER 2 (hrs)','SHAFT GENERATOR 1 (hrs)','SHAFT GENERATOR 2 (hrs)','GENERATOR 1 (hrs)','GENERATOR 2 (hrs)','GENERATOR 3 (hrs)','GENERATOR 4 (hrs)','GENERATOR 5 (hrs)','GENERATOR 6 (hrs)','EMERGENCY GENERATOR (hrs)']
         engine_fuel_column = ['PORT ME (ltrs)','PORT ME OUTLET FLOWMETER (ltrs)','CENTER ME (P) (ltrs)','CENTER ME (P) OUTLET FLOWMETER (ltrs)','CENTER ME (STBD) (ltrs)','CENTER ME (STBD) OUTLET FLOWMETER (ltrs)','STBD ME (ltrs)','STBD ME OUTLET FLOWMETER (ltrs)','BOW THRUSTER 1 (ltrs)','BOW THRUSTER 2 (ltrs)','BOW THRUSTER 3 (ltrs)','STERN THRUSTER 1 (ltrs)','STERN THRUSTER 2 (ltrs)','SHAFT GENERATOR 1 (ltrs)','SHAFT GENERATOR 2 (ltrs)','GENERATOR 1 (ltrs)','GENERATOR 2 (ltrs)','GENERATOR 3 (ltrs)','GENERATOR 4 (ltrs)','GENERATOR 5 (ltrs)','GENERATOR 6 (ltrs)','EMERGENCY GENERATOR (ltrs)','fuel']
         activity_column = ['Maneuvering at Supply Base','Alongside berth at Supply Base','Anchorage at Supply Base','','En-route: full speed','En-route: economical speed','','Inter-rig/ Maneuvering offshore','Standby steaming offshore','Cargo works within 500m zone','Towing/ Static Towing/ Rigmove/ Hose Handling','Mooring to buoy/platform offshore']
@@ -59,12 +64,8 @@ for vdrFile in os.listdir(vdrDirectory):
         rob_column = ['ROB','OPENING @ 0000H','','','','','','Consumed','','','','','','','','','','','CLOSING @ 2400H','Remarks']
 
         #CREATE DATAFRAME
-        df = pd.DataFrame({'MMSI': shipMMSI,
-                           'Vessel Name': [vesselName],
-                           'Nationality of Ship': shipNationality,
-                           'Type of Vessel': shipType,
-                           'Captain on Duty': [captainName],
-                           'Location @ 2400H': [location],
+        df = pd.DataFrame({'Vessel Name': [vesselName],
+                           'Location': [location],
                            'date': todayDate})
         df_engine_hour = pd.DataFrame([engineHour_value], columns=engine_hour_column)
         df_engine_fuel = pd.DataFrame([engineFuel_value], columns=engine_fuel_column)

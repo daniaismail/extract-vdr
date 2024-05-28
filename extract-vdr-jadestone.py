@@ -9,15 +9,14 @@ from datetime import date, timedelta
 import logging
 
 vdrDirectory = 'VDR'
-vdrClientDir = 'C:/Users/mvmwe/PycharmProjects/extract-vdr/vdr/jadestone'
+vdrClientDir = 'C:/Users/User/PycharmProjects/extract-vdr/vdr/jadestone'
 
 date_date = date.today()
 t = date_date.strftime("%d%m%y")
-logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%d%m%Y %I:%M:%S%p', filename=f"C:/Users/mvmwe/PycharmProjects/extract-vdr/log/log {t}.txt", level=logging.DEBUG)
+logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%d%m%Y %I:%M:%S%p', filename=f"C:/Users/User/PycharmProjects/extract-vdr/log/log {t}.txt", level=logging.DEBUG)
 yesterday = date_date - timedelta(days=1)
 todayDate = yesterday.strftime("%d/%m/%Y")
 dt = date_date.strftime('%d-%b-%Y')
-print(dt)
 fileTemplate = 'Template.xlsx'
 
 #EMAIL INFO
@@ -29,9 +28,9 @@ server_mssb = "meridian-svr.meridiansurveys.com.my"
 vesselemail_list = []
 
 logging.debug('Logging started..')
-logging.debug('Open email-vessel-jadestone.txt')
+logging.debug('Open jadestone-email-list.txt')
 try:
-    with open(r'C:\Users\mvmwe\PycharmProjects\extract-vdr\email-vessel-jadestone.txt') as f:
+    with open(r'C:\Users\User\PycharmProjects\extract-vdr\jadestone-email-list.txt') as f:
         try:
             for line in f:
                 vesselemail_list.append(line.replace("\n", ""))
@@ -40,6 +39,17 @@ try:
 except:
     logging.exception('Error info in text file or check txt file name')
     sys.exit()
+
+def delete_files_in_directory(vdrClientDir):
+   try:
+     files = os.listdir(vdrClientDir)
+     for file in files:
+       file_path = os.path.join(vdrClientDir, file)
+       if os.path.isfile(file_path):
+         os.remove(file_path)
+     print("All files deleted successfully.")
+   except OSError:
+     print("Error occurred while deleting files.")
 
 #DOWNLOAD FROM EMAIL
 def dwl_vdr(email_add, password, server, vesselEmail):
@@ -89,7 +99,8 @@ def dwl_vdr(email_add, password, server, vesselEmail):
     logging.debug('Job finished..')
 
 try:
-    logging.debug('Downloading from mvmcc@meridiansurveys.com.my..')
+    logging.debug('Deleting old vdr files and Downloading from mvmcc@meridiansurveys.com.my..')
+    delete_files_in_directory(vdrClientDir)
     dwl_vdr(email_vdr, pwd_vdr, server_mssb, vesselemail_list)
 
 except Exception as e:

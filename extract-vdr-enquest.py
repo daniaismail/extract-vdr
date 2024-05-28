@@ -10,10 +10,21 @@ from datetime import date, timedelta
 import logging
 
 #VDR DIRECTORY
-vdrClientDir = 'C:/Users/DOUBLE33/PycharmProjects/extract-vdr/vdr/enquest'
+vdrClientDir = 'C:/Users/User/PycharmProjects/extract-vdr/vdr/enquest'
 
 #FUNCTIONS
 #download vdr from email
+
+def delete_files_in_directory(vdrClientDir):
+   try:
+     files = os.listdir(vdrClientDir)
+     for file in files:
+       file_path = os.path.join(vdrClientDir, file)
+       if os.path.isfile(file_path):
+         os.remove(file_path)
+     print("All files deleted successfully.")
+   except OSError:
+     print("Error occurred while deleting files.")
 def dwl_vdr(email_add, password, server, vesselEmail):
     imap = imaplib.IMAP4_SSL(server, 993)
     imap.login(email_add, password)
@@ -81,7 +92,7 @@ fileTemplate = 'Template.xlsx'
 logging.debug('Logging started..')
 logging.debug('Open enquest-email-list.txt')
 try:
-    with open(r'C:\Users\DOUBLE33\PycharmProjects\extract-vdr\enquest-email-list.txt') as f:
+    with open(r'C:\Users\User\PycharmProjects\extract-vdr\enquest-email-list.txt') as f:
         try:
             for line in f:
                 vesselemail_list.append(line.replace("\n", ""))
@@ -92,7 +103,8 @@ except:
     sys.exit()
 
 try:
-    logging.debug('Downloading from mvmcc@meridiansurveys.com.my..')
+    logging.debug('Deleting old vdr files and Downloading from mvmcc@meridiansurveys.com.my..')
+    delete_files_in_directory(vdrClientDir)
     dwl_vdr(email_vdr, pwd_vdr, server_mssb, vesselemail_list)
 
 except Exception as e:
@@ -134,6 +146,7 @@ for vdrFile in os.listdir(vdrClientDir):
         file_path = os.path.join(template_path, fileName)
         shutil.copy(fileTemplate, file_path)
         location = sheetDailyReport['U4'].value
+        enroute_to = sheetDailyReport['W4'].value
         weather_data_1 = []
         weather_data_2 = []
         rob_data = []
@@ -168,8 +181,9 @@ for vdrFile in os.listdir(vdrClientDir):
         combined_weather_data = weather_data_1 + weather_data_2
 
         #CREATE DATAFRAME
-        df = pd.DataFrame({'Vessel Name': [vesselName],
+        df_summary = pd.DataFrame({'Vessel Name': [vesselName],
                            'Location': [location],
+                           'Enroute to / Routing': [enroute_to],
                            'date': todayDate})
         df_weather_combine = pd.DataFrame(combined_weather_data,columns=weather_column)
         df_TOD = pd.DataFrame(TOD_data,columns=TOD_column)
@@ -185,8 +199,9 @@ for vdrFile in os.listdir(vdrClientDir):
 
         #EXPORT TO EXCEL
         with pd.ExcelWriter(fileName, engine = 'openpyxl', mode='a') as writer:
+            df_summary.to_excel(writer, sheet_name='Summary', index=False)
             df_weather_combine.to_excel(writer, sheet_name='Weather', index=False)
-            selected_row_transposed.to_excel(writer, sheet_name='Summary', index=False)
+            selected_row_transposed.to_excel(writer, sheet_name='Fuel-Activities', index=False)
             df_TOD.to_excel(writer, sheet_name='TOD', index=False)
             df_rob_combine.to_excel(writer, sheet_name='ROB', index=False)
             print(f'{vdrFile} is DONE')

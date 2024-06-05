@@ -120,6 +120,7 @@ for vdrFile in os.listdir(vdrClientDir):
         normalized_sheet_names = [normalize_sheet_name(sheet_name) for sheet_name in wb.sheetnames]
 
         sheetDailyReport = None
+        sheetDailyReport2 = None
         sheetActivities = None
         sheetFuel = None
         sheetTOD = None
@@ -128,6 +129,10 @@ for vdrFile in os.listdir(vdrClientDir):
         for normalized_name, sheet_name in zip(normalized_sheet_names, wb.sheetnames):
             if normalized_name == 'daily report':
                 sheetDailyReport = wb[sheet_name]
+            elif normalized_name == 'daily report(2)':
+                sheetDailyReport2 = wb[sheet_name]
+            elif normalized_name == 'daily report2':
+                sheetDailyReport2 = wb[sheet_name]
             elif normalized_name == 'boat movements':
                 sheetActivities = wb[sheet_name]
             elif normalized_name == 'fuel monitoring':
@@ -135,7 +140,7 @@ for vdrFile in os.listdir(vdrClientDir):
             elif normalized_name == 'tod report':
                 sheetTOD = wb[sheet_name]
 
-        if sheetDailyReport is None or sheetActivities is None or sheetFuel is None or sheetTOD is None:
+        if sheetDailyReport is None or sheetDailyReport2 is None or sheetActivities is None or sheetFuel is None or sheetTOD is None:
             print(f'Error: One or more required sheets not found in {vdrFile}')
             continue
 
@@ -152,6 +157,8 @@ for vdrFile in os.listdir(vdrClientDir):
         rob_data = []
         fuel_data = []
         activities_data = []
+        operation_act_p1_data = []
+        operation_act_p2_data = []
         TOD_data = []
         cargo_descriptions = ['FUEL OIL (Ltrs)', 'FRESH WATER (Ltrs)', 'LUB OIL (Ltrs)', 'DISPERSANT (Ltrs)']
 
@@ -168,6 +175,10 @@ for vdrFile in os.listdir(vdrClientDir):
             rob_data.append([cell.value for cell in row])
         for row in sheetTOD.iter_rows(min_row=18,max_row=40,min_col=3,max_col=19):
             TOD_data.append([cell.value for cell in row])
+        for row in sheetDailyReport.iter_rows(min_row=66,max_row=150,min_col=3,max_col=21):
+            operation_act_p1_data.append([cell.value for cell in row])
+        for row in sheetDailyReport2.iter_rows(min_row=26,max_row=50,min_col=3,max_col=15):
+            operation_act_p2_data.append([cell.value for cell in row])
 
         #COLUMN NAME
         summary_column = ['MMSI','Vessel Name','Nationality of Ship','Type of Vessel','Location','Date']
@@ -176,6 +187,8 @@ for vdrFile in os.listdir(vdrClientDir):
         activities_column = ['Anchorage','In Port - Shifting','Alongside Jetty','Enroute Econ Speed (85% MCR)','Enroute Econ Speed (100% MCR)','Inter Rig','Cargo Work / Passenger Transfer','Standby Close - Active in/outside 500m Zone','Standby Normal - Nil Activity','Towing @ Barge / Rig Move','Tied-up to Mooring Standby Buoy','Anchor Handling']
         TOD_column = ['No.','Name','','','','','Vessel Joining Date (DD-MM-YY)','','Length of Stay Onboard (days)','','Rank','','Nationality','','International Passport Number / NRIC','Valid Thru (Medical)','BOSIET Validity']
         rob_column = ['Open','','','Consumption','','','Loaded','','','','Discharged','','','','ROB']
+        operation_act_p1_column = ['Time','','','','Activities','','','','','','','','','','','Time','','','Activities']
+        operation_act_p2_column = ['Time','','Activities','','','','','','','','Time','','Activities']
 
         #COMBINE VERTICALLY
         combined_weather_data = weather_data_1 + weather_data_2
@@ -189,19 +202,25 @@ for vdrFile in os.listdir(vdrClientDir):
         df_TOD = pd.DataFrame(TOD_data,columns=TOD_column)
         df_cargo_des = pd.DataFrame({'CARGO DESCRIPTION': cargo_descriptions})
         df_rob = pd.DataFrame(rob_data,columns=rob_column)
+        df_op_act_1 = pd.DataFrame(operation_act_p1_data, columns=operation_act_p1_column)
+        df_op_act_2 = pd.DataFrame(operation_act_p2_data, columns=operation_act_p2_column)
         df_activities = pd.DataFrame(activities_data,columns=activities_column)
         df_fuel = pd.DataFrame(fuel_data,columns=fuel_column)
         df_rob_combine = pd.concat((df_cargo_des,df_rob),axis=1)
-        df_activities_fuel_combine = pd.concat((df_fuel,df_activities),axis=1)
-        selected_row = df_activities_fuel_combine.iloc[day_yesterday - 1]
-        selected_row_transposed = selected_row.to_frame().T
+        selected_fuel_row = df_fuel.iloc[day_yesterday - 1]
+        selected_act_row = df_activities.iloc[day_yesterday - 1]
+        selected_fuel_row_t = selected_fuel_row.to_frame().T
+        selected_act_row_t = selected_act_row.to_frame().T
         #selected_row_transposed = df_activities_fuel_combine.iloc[day_yesterday - 1:day_yesterday].T
 
         #EXPORT TO EXCEL
         with pd.ExcelWriter(fileName, engine = 'openpyxl', mode='a') as writer:
             df_summary.to_excel(writer, sheet_name='Summary', index=False)
             df_weather_combine.to_excel(writer, sheet_name='Weather', index=False)
-            selected_row_transposed.to_excel(writer, sheet_name='Fuel-Activities', index=False)
+            selected_fuel_row_t.to_excel(writer, sheet_name='Fuel', index=False)
+            selected_act_row_t.to_excel(writer, sheet_name='Activities', index=False)
+            df_op_act_1.to_excel(writer, sheet_name='Op activities page 1', index=False)
+            df_op_act_2.to_excel(writer, sheet_name='Op activities page 2', index=False)
             df_TOD.to_excel(writer, sheet_name='TOD', index=False)
             df_rob_combine.to_excel(writer, sheet_name='ROB', index=False)
             print(f'{vdrFile} is DONE')

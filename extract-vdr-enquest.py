@@ -8,6 +8,8 @@ import shutil
 from openpyxl import load_workbook
 from datetime import date, timedelta
 import logging
+from email.header import decode_header
+from tnefparse import TNEF
 
 #VDR DIRECTORY
 vdrClientDir = 'C:/Users/User/PycharmProjects/extract-vdr/vdr/enquest'
@@ -25,6 +27,7 @@ def delete_files_in_directory(vdrClientDir):
      print("All files deleted successfully.")
    except OSError:
      print("Error occurred while deleting files.")
+
 def dwl_vdr(email_add, password, server, vesselEmail):
     imap = imaplib.IMAP4_SSL(server, 993)
     imap.login(email_add, password)
@@ -41,14 +44,70 @@ def dwl_vdr(email_add, password, server, vesselEmail):
             for num in data[0].split():
                 typ, data = imap.fetch(num, '(RFC822)')
                 raw_email = data[0][1]
+
+                '''
                 raw_email_string = raw_email.decode('ISO-8859–1')
                 email_message = email.message_from_string(raw_email_string)
                 subject_name = email_message['subject']
                 print(subject_name)
+                '''
+                email_message = email.message_from_bytes(raw_email)
+                subject, encoding = decode_header(email_message["Subject"])[0]
+
+                if isinstance(subject, bytes):
+                    subject = subject.decode(encoding or "UTF-8", errors="replace")
+
+                print(f'Subject: {subject}')
 
                 # att_path = "No attachment found from email " + subject_name
-                logging.debug(f'Email subject: {subject_name}')
+                logging.debug(f'Email subject: {subject}')
                 for part in email_message.walk():
+                    try:
+                        if part.get_content_maintype() == 'multipart':
+                            continue
+                        if part.get('Content-Disposition') is None:
+                            continue
+
+                        fileName = part.get_filename()
+
+                        if fileName:
+                            decode_name, encoding = decode_header(fileName)[0]
+                            if isinstance(decode_name, bytes):
+                                decode_name = decode_name.decode(encoding or "UTF-8", errors="replace")
+
+                        if decode_name and any(keyword in decode_name for keyword in ['VDR','VDMR']) and decode_name.endswith('.xlsx'):
+                            try:
+                                att_path = os.path.join(vdrClientDir, decode_name)
+                                print(decode_name)
+                                print(f'Path: {att_path}')
+
+                                if not os.path.isfile(att_path):
+                                    with open(att_path, "wb") as fp:
+                                        fp.write(part.get_payload(decode=True))
+                            except TypeError as e:
+                                continue
+
+                        if decode_name and any(keyword in decode_name for keyword in ['winmail']) and decode_name.endswith('.dat'):
+                            try:
+                                att_path = os.path.join(vdrClientDir, decode_name)
+                                print(decode_name)
+                                print(f'Path: {att_path}')
+
+                                if not os.path.isfile(att_path):
+                                    with open(att_path, "wb") as fp:
+                                        fp.write(part.get_payload(decode=True))
+                                    extract_winmail_dat("C:/Users/User/PycharmProjects/extract-vdr/vdr/enquest/winmail.dat", "C:/Users/User/PycharmProjects/extract-vdr/vdr/enquest")
+                                    os.remove(att_path)
+                                    print("Remove dat file")
+                            except TypeError as e:
+                                continue
+
+                    except Exception as e:
+                        print(f"Error processing attachment: {e}")
+
+
+                '''
+                                for part in email_message.walk():
                     if part.get_content_maintype() == 'multipart':
                         continue
                     if part.get('Content-Disposition') is None:
@@ -61,6 +120,8 @@ def dwl_vdr(email_add, password, server, vesselEmail):
                         with open(filename, 'wb') as f:
                             f.write(part.get_payload(decode=True))
                         logging.debug(f'File downloaded: {filename}')
+                '''
+
             index += 1
 
         except (OSError, TypeError) as k:
@@ -71,12 +132,43 @@ def dwl_vdr(email_add, password, server, vesselEmail):
     imap.logout()
     logging.debug('Job finished..')
 
+def extract_winmail_dat(file_path, output_directory="."):
+    """
+    Extracts attachments and body from a winmail.dat file.
+
+    Args:
+        file_path (str): The path to the winmail.dat file.
+        output_directory (str): The directory where extracted files will be saved.
+    """
+    try:
+        with open(file_path, 'rb') as f:
+            winmail_data = f.read()
+
+        tnef_data = TNEF(winmail_data)
+
+        # Extract attachments
+        for attachment in tnef_data.attachments:
+            attachment_name = attachment.long_filename() or attachment.name
+            with open(f"{output_directory}/{attachment_name}", 'wb') as out_f:
+                out_f.write(attachment.data)
+            print(f"Extracted attachment: {attachment_name}")
+
+        # Extract email body (if present)
+        if tnef_data.body:
+            body_content = tnef_data.body.decode('utf-8', errors='ignore')
+            with open(f"{output_directory}/email_body.txt", 'w', encoding='utf-8') as body_f:
+                body_f.write(body_content)
+            print("Extracted email body.")
+
+    except Exception as e:
+        print(f"Error extracting winmail.dat: {e}")
+
 def normalize_sheet_name(sheet_name):
     return sheet_name.lower().strip()
 
 #EMAIL INFO
 email_vdr = "mvmcc@meridiansurveys.com.my"
-pwd_vdr = "dc)in]}Xzk&%"
+pwd_vdr = "HehAb58ynLR3FX"
 server_mssb = "meridian-svr.meridiansurveys.com.my"
 
 #READ FROM TXT FILE AND APPEND INTO LIST
@@ -131,6 +223,8 @@ for vdrFile in os.listdir(vdrClientDir):
                 sheetDailyReport = wb[sheet_name]
             elif normalized_name == 'daily report(2)':
                 sheetDailyReport2 = wb[sheet_name]
+            elif normalized_name == 'daily report3':
+                sheetDailyReport2 = wb[sheet_name]
             elif normalized_name == 'daily report2':
                 sheetDailyReport2 = wb[sheet_name]
             elif normalized_name == 'boat movements':
@@ -141,11 +235,11 @@ for vdrFile in os.listdir(vdrClientDir):
                 sheetTOD = wb[sheet_name]
 
         if sheetDailyReport is None or sheetDailyReport2 is None or sheetActivities is None or sheetFuel is None or sheetTOD is None:
-            print(f'Error: One or more required sheets not found in {vdrFile}')
+            print(f'Error: One or more required sheets not found in {vdrFile}, sheet {sheet_name}')
             continue
 
         vesselName = sheetDailyReport['C4'].value
-        fileName = vesselName + '.xlsx'
+        fileName = 'FROM VDR ' + vesselName + '.xlsx'
         # DUPLICATE TEMPLATE
         template_path = os.path.dirname(fileTemplate)
         file_path = os.path.join(template_path, fileName)
@@ -218,7 +312,7 @@ for vdrFile in os.listdir(vdrClientDir):
             df_summary.to_excel(writer, sheet_name='Summary', index=False)
             df_weather_combine.to_excel(writer, sheet_name='Weather', index=False)
             selected_fuel_row_t.to_excel(writer, sheet_name='Fuel', index=False)
-            selected_act_row_t.to_excel(writer, sheet_name='Activities', index=False)
+            selected_act_row_t.to_excel(writer, sheet_name='Activity', index=False)
             df_op_act_1.to_excel(writer, sheet_name='Op activities page 1', index=False)
             df_op_act_2.to_excel(writer, sheet_name='Op activities page 2', index=False)
             df_TOD.to_excel(writer, sheet_name='TOD', index=False)
